@@ -1,4 +1,4 @@
-<svg class="h-8" viewBox="0 0 128.886763 51.8995667" xmlns="http://www.w3.org/2000/svg">
+<svg class="h-8" viewBox="0 0 130 53" xmlns="http://www.w3.org/2000/svg">
     <title>{{ config('app.name') }}</title>
     <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd" opacity="0.99">
         <g fill="currentColor" fill-rule="nonzero">
