@@ -6,12 +6,7 @@
         <nav class="flex items-center justify-between h-20">
             <a class="text-2xl font-semibold tracking-tight"
                href="{{ route('home') }}">
-                @if(!is_null($logo) && \Illuminate\Support\Facades\Storage::disk('public')->exists($logo))
-                    <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($logo) }}?v={{ \Illuminate\Support\Facades\Storage::disk('public')->lastModified($logo) }}" alt="{{ config('app.name') }}"
-                         class="h-8"/>
-                @else
-                    {{ config('app.name') }}
-                @endif
+                @include('components.logo')
             </a>
 
             <ul class="items-center hidden space-x-2 text-sm font-medium lg:flex">
