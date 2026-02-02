@@ -18,7 +18,7 @@
         "@tailwindcss/vite": "^4.1.13",
         "alpinejs": "^3.14.9",
         "autoprefixer": "^10.4.7",
-        "laravel-vite-plugin": "^2.0.1",
+        "laravel-vite-plugin": "^2.1.0",
         "lodash": "^4.17.19",
         "postcss": "^8.1.14",
         "tailwindcss": "^4.1.13",
