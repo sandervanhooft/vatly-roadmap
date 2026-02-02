@@ -1,9 +1,9 @@
 {
     "mcpServers": {
         "laravel-boost": {
-            "command": "/Users/sandervanhooft/Library/Application Support/Herd/bin/php84",
+            "command": "/opt/homebrew/Cellar/php/8.4.10/bin/php",
             "args": [
-                "/Users/sandervanhooft/apps/vatly-roadmap/artisan",
+                "/Users/dennissmink/Workspace/roadmap/artisan",
                 "boost:mcp"
             ]
         }

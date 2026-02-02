@@ -102,9 +102,15 @@
                 <div class="bg-white dark:bg-gray-800 shadow-2xl rounded-2xl p-8 md:p-10 backdrop-blur-sm transform transition hover:scale-[1.01]">
                     <!-- Logo/App name -->
                     <div class="flex justify-center mb-8">
-                        <div class="h-12 md:h-16 flex items-center">
-                            @include('components.logo')
-                        </div>
+                        @if(!is_null($logo) && \Illuminate\Support\Facades\Storage::disk('public')->exists($logo))
+                            <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($logo) }}?v={{ \Illuminate\Support\Facades\Storage::disk('public')->lastModified($logo) }}"
+                                 alt="{{ config('app.name') }}"
+                                 class="h-12 md:h-16 max-w-full object-contain"/>
+                        @else
+                            <h2 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
+                                {{ config('app.name') }}
+                            </h2>
+                        @endif
                     </div>
 
                     <!-- Lock icon -->
