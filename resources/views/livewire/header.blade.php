@@ -7,9 +7,9 @@
             <a class="text-2xl font-semibold tracking-tight"
                href="{{ route('home') }}">
                 @if(!is_null($logo) && \Illuminate\Support\Facades\Storage::disk('public')->exists($logo))
-                    {{-- Light mode (brand-500 bg): white logo. Dark mode (gray-900 bg): original (blue) logo. --}}
+                    {{-- Always white logo: header bg is brand-500 (light) or gray-900 (dark) --}}
                     <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($logo) }}?v={{ \Illuminate\Support\Facades\Storage::disk('public')->lastModified($logo) }}" alt="{{ config('app.name') }}"
-                         class="h-8 brightness-0 invert dark:brightness-100 dark:invert-0"/>
+                         class="h-8 brightness-0 invert"/>
                 @else
                     {{ config('app.name') }}
                 @endif
