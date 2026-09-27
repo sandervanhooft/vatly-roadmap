@@ -1,7 +1,7 @@
 <div
     @class([
         'ml-1 md:ml-6' => $comment->parent_id !== null,
-        'mr-1 bg-brand-50 rounded-lg ring-1 ring-brand-200' => $reply == $comment->id,
+        'mr-1 bg-brand-50 dark:bg-brand-900/30 rounded-lg ring-1 ring-brand-200 dark:ring-brand-800' => $reply == $comment->id,
 		'border border-yellow-700 rounded-md mt-1 mb-1' => $comment->private && !$comment->parent?->private,
         'block py-2 overflow-hidden transition'
     ])
@@ -55,11 +55,11 @@
 
         <div class="p-2 flex justify-between gap-2 items-center">
             @if($comment->user->is(auth()->user()))
-                {{ $this->editAction->arguments(['comment' => $comment]) }}
+                {{ ($this->editAction)(['comment' => $comment->id]) }}
                 &centerdot;
             @endif
             @if(!$item->board?->block_comments)
-                {{ $this->replyAction->arguments(['comment' => $comment]) }}
+                {{ ($this->replyAction)(['comment' => $comment->id]) }}
 
                 &centerdot;
             @endif
