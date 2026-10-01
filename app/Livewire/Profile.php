@@ -2,25 +2,31 @@
 
 namespace App\Livewire;
 
+use Closure;
 use ResourceBundle;
 use App\Models\User;
 use Livewire\Component;
 use Filament\Actions\Action;
+use Laravel\Fortify\Fortify;
 use Filament\Actions\BulkAction;
+use App\Settings\GeneralSettings;
 use Filament\Support\Colors\Color;
 use App\SocialProviders\SsoProvider;
 use Illuminate\Support\Facades\Http;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\View;
 use Filament\Support\Enums\Alignment;
 use Filament\Forms\Contracts\HasForms;
+use Filament\Schemas\Components\Group;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Contracts\HasTable;
 use App\Notifications\VerifyEmailChange;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Forms\Components\CheckboxList;
@@ -28,6 +34,11 @@ use Illuminate\Database\Eloquent\Collection;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Actions\Concerns\InteractsWithActions;
+use Laravel\Fortify\Actions\GenerateNewRecoveryCodes;
+use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
+use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
+use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
+use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 
 class Profile extends Component implements HasForms, HasTable, HasActions
 {
@@ -41,6 +52,7 @@ class Profile extends Component implements HasForms, HasTable, HasActions
     public $notification_settings;
     public $date_locale;
     public $hide_from_leaderboard;
+    public ?string $newMcpToken = null;
     public User $user;
 
     public function mount(): void
@@ -62,31 +74,38 @@ class Profile extends Component implements HasForms, HasTable, HasActions
     protected function getFormSchema(): array
     {
         return [
-            Section::make(trans('auth.profile'))
-                ->columns()
-                ->schema([
-                    TextInput::make('name')->label(trans('auth.name'))->required(),
-                    TextInput::make('username')
-                        ->label(trans('profile.username'))
-                        ->helperText(trans('profile.username_description'))
-                        ->required()
-                        ->rules([
-                            'alpha_dash'
-                        ])
-                        ->unique(table: User::class, column: 'username', ignorable: auth()->user()),
-                    TextInput::make('email')
-                        ->label(trans('auth.email'))
-                        ->required()
-                        ->email()
-                        ->unique(table: User::class, column: 'email', ignorable: auth()->user()),
-                    Select::make('locale')->label(trans('auth.locale'))->options($this->locales)->placeholder(trans('auth.locale_null_value')),
-                    Select::make('date_locale')->label(trans('auth.date_locale'))->options($this->locales)->placeholder(trans('auth.date_locale_null_value')),
-                ])->collapsible(),
+            Tabs::make('profile')
+                ->persistTabInQueryString()
+                ->tabs([
+                    Tab::make(trans('profile.tabs.account'))
+                        ->key('account', isInheritable: false)
+                        ->icon('heroicon-o-user')
+                        ->columns()
+                        ->schema([
+                            TextInput::make('name')->label(trans('auth.name'))->required(),
+                            TextInput::make('username')
+                                ->label(trans('profile.username'))
+                                ->helperText(trans('profile.username_description'))
+                                ->required()
+                                ->rules([
+                                    'alpha_dash'
+                                ])
+                                ->unique(table: User::class, column: 'username', ignorable: auth()->user()),
+                            TextInput::make('email')
+                                ->label(trans('auth.email'))
+                                ->required()
+                                ->email()
+                                ->unique(table: User::class, column: 'email', ignorable: auth()->user()),
+                            Select::make('locale')->label(trans('auth.locale'))->options($this->locales)->placeholder(trans('auth.locale_null_value'))->searchable(),
+                            Select::make('date_locale')->label(trans('auth.date_locale'))->options($this->locales)->placeholder(trans('auth.date_locale_null_value'))->searchable(),
+                            $this->getSaveFormActions(),
+                            View::make('livewire.profile.delete-account')->columnSpanFull(),
+                        ]),
 
-            Grid::make(2)
-                ->schema([
-                    Section::make(trans('profile.notifications'))
-                        ->columnSpan(1)
+                    Tab::make(trans('profile.tabs.preferences'))
+                        ->key('preferences', isInheritable: false)
+                        ->icon('heroicon-o-adjustments-horizontal')
+                        ->columns()
                         ->schema([
                             CheckboxList::make('notification_settings')
                                 ->label(trans('profile.notification_settings'))
@@ -94,31 +113,88 @@ class Profile extends Component implements HasForms, HasTable, HasActions
                                     'receive_mention_notifications' => trans('profile.receive_mention_notifications'),
                                     'receive_comment_reply_notifications' => trans('profile.receive_comment_reply_notifications'),
                                 ]),
-                        ])->collapsible(),
 
-                    Section::make(trans('profile.settings'))
-                        ->columnSpan(1)
+                            Group::make([
+                                Select::make('per_page_setting')
+                                    ->label(trans('profile.per-page-setting'))
+                                    ->multiple()
+                                    ->options([
+                                        5 => '5',
+                                        10 => '10',
+                                        15 => '15',
+                                        25 => '25',
+                                        50 => '50',
+                                    ])
+                                    ->required()
+                                    ->helperText(trans('profile.per-page-setting-helper'))
+                                    ->rules(['array', 'in:5,10,15,25,50']),
+
+                                Toggle::make('hide_from_leaderboard')
+                                    ->label(trans('profile.hide-from-leaderboard'))
+                                    ->helperText(trans('profile.hide-from-leaderboard-helper')),
+                            ]),
+
+                            $this->getSaveFormActions(),
+                        ]),
+
+                    Tab::make(trans('profile.tabs.security'))
+                        ->key('security', isInheritable: false)
+                        ->icon('heroicon-o-shield-check')
                         ->schema([
-                            Select::make('per_page_setting')
-                                                   ->label(trans('profile.per-page-setting'))
-                                ->multiple()
-                                ->options([
-                                    5 => '5',
-                                    10 => '10',
-                                    15 => '15',
-                                    25 => '25',
-                                    50 => '50',
-                                ])
-                                ->required()
-                                ->helperText(trans('profile.per-page-setting-helper'))
-                                ->rules(['array', 'in:5,10,15,25,50']),
+                            View::make('livewire.profile.two-factor')
+                                ->viewData(fn (): array => $this->getTwoFactorViewData()),
+                        ]),
 
-                            Toggle::make('hide_from_leaderboard')
-                                ->label(trans('profile.hide-from-leaderboard'))
-                                ->helperText(trans('profile.hide-from-leaderboard-helper'))
-                        ])->collapsible(),
-                ])
+                    Tab::make(trans('profile.mcp.heading'))
+                        ->key('mcp', isInheritable: false)
+                        ->icon('heroicon-o-command-line')
+                        ->visible(fn (): bool => app(GeneralSettings::class)->enable_mcp)
+                        ->schema([
+                            View::make('livewire.profile.mcp-tokens')
+                                ->viewData(fn (): array => [
+                                    'mcpTokens' => $this->user->tokens()->latest()->get(),
+                                ]),
+                        ]),
 
+                    Tab::make(trans('profile.social-login'))
+                        ->key('social-login', isInheritable: false)
+                        ->icon('heroicon-o-link')
+                        ->visible(fn (): bool => SsoProvider::isEnabled())
+                        ->schema([
+                            View::make('livewire.profile.social-login'),
+                        ]),
+                ]),
+        ];
+    }
+
+    /**
+     * The save button shown at the bottom of each tab that holds form fields.
+     */
+    protected function getSaveFormActions(): Actions
+    {
+        return Actions::make([
+            Action::make('save')
+                ->label(trans('profile.save'))
+                ->submit('submit'),
+        ])->columnSpanFull();
+    }
+
+    /**
+     * @return array{twoFactorEnabled: bool, twoFactorConfirmed: bool, twoFactorQrCode: ?string, twoFactorSetupKey: ?string, recoveryCodes: array<int, string>}
+     */
+    protected function getTwoFactorViewData(): array
+    {
+        $twoFactorEnabled = ! is_null($this->user->two_factor_secret);
+        $twoFactorConfirmed = ! is_null($this->user->two_factor_confirmed_at);
+
+        return [
+            'twoFactorEnabled' => $twoFactorEnabled,
+            'twoFactorConfirmed' => $twoFactorConfirmed,
+            'twoFactorQrCode' => $twoFactorEnabled ? $this->user->twoFactorQrCodeSvg() : null,
+            'twoFactorSetupKey' => $twoFactorEnabled
+                ? Fortify::currentEncrypter()->decrypt($this->user->two_factor_secret)
+                : null,
+            'recoveryCodes' => $twoFactorConfirmed ? $this->user->recoveryCodes() : [],
         ];
     }
 
@@ -233,6 +309,189 @@ class Profile extends Component implements HasForms, HasTable, HasActions
         return redirect()->route('home');
     }
 
+    /**
+     * Begin two-factor enrollment: generate a secret + recovery codes.
+     * The user must then scan the QR code and confirm with a valid code.
+     */
+    public function enableTwoFactorAction(): Action
+    {
+        return Action::make('enableTwoFactor')
+            ->label(trans('profile.two_factor.enable'))
+            ->color(Color::Blue)
+            ->schema([
+                TextInput::make('current_password')
+                    ->label(trans('auth.password'))
+                    ->password()
+                    ->required()
+                    ->rule('current_password'),
+            ])
+            ->action(function () {
+                app(EnableTwoFactorAuthentication::class)($this->user);
+
+                $this->user->refresh();
+
+                Notification::make('two-factor-enabled')
+                    ->title(trans('profile.two_factor.enabled_notification'))
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Confirm enrollment by verifying a code from the authenticator app.
+     */
+    public function confirmTwoFactorAction(): Action
+    {
+        return Action::make('confirmTwoFactor')
+            ->label(trans('profile.two_factor.confirm'))
+            ->color(Color::Blue)
+            ->schema([
+                TextInput::make('code')
+                    ->label(trans('profile.two_factor.code'))
+                    ->required()
+                    ->rule(fn (): Closure => function (string $attribute, $value, Closure $fail) {
+                        if (empty($this->user->two_factor_secret) ||
+                            ! app(TwoFactorAuthenticationProvider::class)->verify(
+                                Fortify::currentEncrypter()->decrypt($this->user->two_factor_secret),
+                                $value
+                            )) {
+                            $fail(trans('profile.two_factor.invalid_code'));
+                        }
+                    }),
+            ])
+            ->action(function () {
+                // The code has already been verified by the field rule above;
+                // verifying again here would trip Fortify's replay protection.
+                $this->user->forceFill(['two_factor_confirmed_at' => now()])->save();
+                $this->user->refresh();
+
+                TwoFactorAuthenticationConfirmed::dispatch($this->user);
+
+                Notification::make('two-factor-confirmed')
+                    ->title(trans('profile.two_factor.confirmed_notification'))
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Cancel an in-progress enrollment that was never confirmed.
+     */
+    public function cancelTwoFactorAction(): Action
+    {
+        return Action::make('cancelTwoFactor')
+            ->label(trans('profile.two_factor.cancel'))
+            ->color(Color::Slate)
+            ->action(function () {
+                app(DisableTwoFactorAuthentication::class)($this->user);
+
+                $this->user->refresh();
+            });
+    }
+
+    /**
+     * Generate a fresh set of recovery codes, invalidating the old ones.
+     */
+    public function regenerateRecoveryCodesAction(): Action
+    {
+        return Action::make('regenerateRecoveryCodes')
+            ->label(trans('profile.two_factor.regenerate_codes'))
+            ->color(Color::Slate)
+            ->requiresConfirmation()
+            ->modalAlignment(Alignment::Left)
+            ->action(function () {
+                app(GenerateNewRecoveryCodes::class)($this->user);
+
+                $this->user->refresh();
+
+                Notification::make('recovery-codes-regenerated')
+                    ->title(trans('profile.two_factor.codes_regenerated_notification'))
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Disable two-factor authentication after confirming the password.
+     */
+    public function disableTwoFactorAction(): Action
+    {
+        return Action::make('disableTwoFactor')
+            ->label(trans('profile.two_factor.disable'))
+            ->color(Color::Red)
+            ->requiresConfirmation()
+            ->modalAlignment(Alignment::Left)
+            ->modalDescription(trans('profile.two_factor.disable_confirmation'))
+            ->schema([
+                TextInput::make('current_password')
+                    ->label(trans('auth.password'))
+                    ->password()
+                    ->required()
+                    ->rule('current_password'),
+            ])
+            ->action(function () {
+                app(DisableTwoFactorAuthentication::class)($this->user);
+
+                $this->user->refresh();
+
+                Notification::make('two-factor-disabled')
+                    ->title(trans('profile.two_factor.disabled_notification'))
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Create a personal access token for connecting an MCP client, the plain text token is only shown once.
+     */
+    public function createMcpTokenAction(): Action
+    {
+        return Action::make('createMcpToken')
+            ->label(trans('profile.mcp.create_token'))
+            ->visible(fn (): bool => app(GeneralSettings::class)->enable_mcp)
+            ->color(Color::Blue)
+            ->modalWidth('md')
+            ->schema([
+                TextInput::make('name')
+                    ->label(trans('profile.mcp.token_name'))
+                    ->placeholder(trans('profile.mcp.token_name_placeholder'))
+                    ->required()
+                    ->maxLength(255),
+            ])
+            ->action(function (array $data) {
+                $this->newMcpToken = $this->user->createToken($data['name'])->plainTextToken;
+
+                Notification::make('mcp-token-created')
+                    ->title(trans('profile.mcp.token_created_notification'))
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Revoke one of the user's own personal access tokens.
+     */
+    public function revokeMcpTokenAction(): Action
+    {
+        return Action::make('revokeMcpToken')
+            ->label(trans('profile.mcp.revoke'))
+            ->color(Color::Red)
+            ->link()
+            ->requiresConfirmation()
+            ->modalAlignment(Alignment::Left)
+            ->modalDescription(trans('profile.mcp.revoke_confirmation'))
+            ->action(function (array $arguments) {
+                $this->user->tokens()->whereKey((int) ($arguments['token'] ?? 0))->delete();
+
+                $this->newMcpToken = null;
+
+                Notification::make('mcp-token-revoked')
+                    ->title(trans('profile.mcp.token_revoked_notification'))
+                    ->success()
+                    ->send();
+            });
+    }
+
     public function getLocalesProperty(): array
     {
         $locales = ResourceBundle::getLocales('');
@@ -244,9 +503,7 @@ class Profile extends Component implements HasForms, HasTable, HasActions
 
     public function render()
     {
-        return view('livewire.profile', [
-            'hasSsoLoginAvailable' => SsoProvider::isEnabled(),
-        ]);
+        return view('livewire.profile');
     }
 
     protected function getTableQuery(): Builder

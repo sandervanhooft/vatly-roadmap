@@ -33,6 +33,7 @@ return [
         'content'       => 'Inhoud',
         'published'     => 'Gepubliceerd',
         'is-published'  => 'Is gepubliceerd',
+        'project'       => 'Project',
     ],
     'comment'     => [
         'label'               => 'Reactie',
@@ -102,6 +103,8 @@ return [
         'slug'                => 'Slug',
         'slug-helper-text'   => 'Dit is de slug van het project. Dit wordt gebruikt in de URL van het project. Laat dit veld leeg om automatisch een slug te genereren.',
         'icon'                => 'Icoon',
+        'icon-image' => 'Eigen icoon',
+        'icon-image-helper-text' => 'Upload een PNG of SVG om in de zijbalk te tonen in plaats van het gekozen icoon.',
         'private'             => 'Privé',
         'private-helper-text' => 'Dit zal het project privé maken. Alleen de werknemers en beheerders kunnen dit project zien.',
         'github-repo'         => 'Github Repository',

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\Sluggable;
 use App\Traits\HasOgImage;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,6 +20,7 @@ class Project extends Model
         'slug',
         'group',
         'icon',
+        'icon_image',
         'url',
         'description',
         'repo',
@@ -45,6 +47,32 @@ class Project extends Model
     public function items(): HasMany
     {
         return $this->hasMany(Item::class);
+    }
+
+    public function changelogs(): HasMany
+    {
+        return $this->hasMany(Changelog::class);
+    }
+
+    /**
+     * Get the public URL of the uploaded icon image, if one is set.
+     */
+    public function iconImageUrl(): ?string
+    {
+        if (! $this->icon_image) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->icon_image);
+    }
+
+    public function isVisibleForCurrentUser(): bool
+    {
+        if (! $this->private || auth()->user()?->hasAdminAccess()) {
+            return true;
+        }
+
+        return auth()->check() && $this->members()->where('user_id', auth()->id())->exists();
     }
 
     public function scopeVisibleForCurrentUser($query)

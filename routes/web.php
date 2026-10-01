@@ -16,6 +16,16 @@ use App\Http\Controllers\Auth\PasswordProtectionController;
 
 Auth::routes();
 
+// Two-factor authentication challenge (shown after a valid password when the
+// account has 2FA enabled). Handled by Fortify's controller; all other 2FA
+// routes are intentionally not registered (see App\Providers\FortifyServiceProvider).
+Route::get('two-factor-challenge', [\Laravel\Fortify\Http\Controllers\TwoFactorAuthenticatedSessionController::class, 'create'])
+    ->middleware('guest')
+    ->name('two-factor.login');
+Route::post('two-factor-challenge', [\Laravel\Fortify\Http\Controllers\TwoFactorAuthenticatedSessionController::class, 'store'])
+    ->middleware(array_filter(['guest', config('fortify.limiters.two-factor') ? 'throttle:'.config('fortify.limiters.two-factor') : null]))
+    ->name('two-factor.login.store');
+
 Route::get('oauth/login', [\App\Http\Controllers\Auth\LoginController::class, 'redirectToProvider'])
     ->middleware('guest')
     ->name('oauth.login');
@@ -30,9 +40,12 @@ Route::get('/activity-widget.js', [WidgetController::class, 'activityJavascript'
 Route::get('/', \App\Http\Controllers\HomeController::class)->name('home');
 
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog');
-Route::get('changelog/{changelog}', [ChangelogController::class, 'show'])->name('changelog.show');
+Route::get('changelog/{slug}', [ChangelogController::class, 'show'])->name('changelog.show');
 
 Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
+// The markdown routes must be registered before the show routes, otherwise "{item}" swallows the ".md" suffix.
+Route::get('items/{item}.md', [ItemController::class, 'markdown'])->name('items.markdown');
+Route::get('projects/{project}/items/{item}.md', [ItemController::class, 'markdown'])->name('projects.items.markdown');
 Route::get('items/{item}', [ItemController::class, 'show'])->name('items.show');
 Route::get('items/{item}/edit', [ItemController::class, 'edit'])->middleware('authed')->name('items.edit');
 Route::get('projects/{project}/items/{item}', [ItemController::class, 'show'])->name('projects.items.show');
@@ -41,9 +54,10 @@ Route::post('projects/{project}/items/{item}/vote', [ItemController::class, 'vot
 Route::post('projects/{project}/items/{item}/update-board', [ItemController::class, 'updateBoard'])->middleware('authed')->name('projects.items.update-board');
 Route::get('projects/{project}/boards/{board}', [BoardsController::class, 'show'])->name('projects.boards.show');
 Route::get('activity', \App\Http\Controllers\ActivityController::class)->name('activity');
+Route::get('mcp/docs', \App\Http\Controllers\McpController::class)->name('mcp.docs');
 
 Route::get('/email/verify', [VerificationController::class, 'show'])->middleware('auth')->name('verification.notice');
-Route::post('/email/verification-notification', [VerificationController::class, 'resend'])->middleware(['auth', 'throttle:6,1'])->name('verification.resend');
+Route::post('/email/verification-notification', [VerificationController::class, 'resend'])->middleware(['auth', 'throttle:verification'])->name('verification.resend');
 Route::get('/email/verify/{id}/{hash}', [VerificationController::class, 'verify'])->middleware(['auth', 'signed'])->name('verification.verify');
 Route::get('/profile/verify-email-change/{id}/{email}', VerifyEmailChangeController::class)->middleware(['auth', 'signed'])->name('profile.verify-email-change');
 
