@@ -36,6 +36,8 @@ class Comments extends Component implements HasForms, HasActions
             return redirect()->route('login');
         }
 
+        abort_if($this->item->board?->block_comments, 403);
+
         if (app(GeneralSettings::class)->users_must_verify_email && !auth()->user()->hasVerifiedEmail()) {
             Notification::make()
                 ->title('Reply')
@@ -49,6 +51,8 @@ class Comments extends Component implements HasForms, HasActions
         ]);
 
         if (filled($this->private_content)) {
+            abort_unless(auth()->user()->hasAdminAccess(), 403);
+
             $formState['content'] = $this->private_content;
             $formState['private'] = true;
         }
