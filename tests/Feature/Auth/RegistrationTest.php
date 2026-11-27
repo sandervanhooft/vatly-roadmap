@@ -14,7 +14,7 @@ test('registration screen can be rendered', function () {
 test('new users can register', function () {
     $response = $this->post(route('register'), [
         'name' => 'Test User',
-        'email' => 'test@example.com',
+        'email' => 'test@gmail.com',
         'password' => 'D&#t@EVMXhfkpx*kLv3F',
         'password_confirmation' => 'D&#t@EVMXhfkpx*kLv3F',
     ]);
@@ -66,4 +66,38 @@ test('new users cannot register with not strong password', function () {
     ]);
 
     $response->assertSessionHasErrors(['password']);
+});
+
+test('new users cannot register with a disposable email address', function () {
+    $response = $this->post(route('register'), [
+        'name' => 'Test User',
+        'email' => 'xk3j9qpz@mailinator.com',
+        'password' => 'D&#t@EVMXhfkpx*kLv3F',
+        'password_confirmation' => 'D&#t@EVMXhfkpx*kLv3F',
+    ]);
+
+    $response->assertSessionHasErrors(['email' => 'Disposable email addresses are not allowed.']);
+    $this->assertGuest();
+});
+
+test('new users cannot register with an email domain without mail servers', function () {
+    $response = $this->post(route('register'), [
+        'name' => 'Test User',
+        'email' => 'test@example.com',
+        'password' => 'D&#t@EVMXhfkpx*kLv3F',
+        'password_confirmation' => 'D&#t@EVMXhfkpx*kLv3F',
+    ]);
+
+    $response->assertSessionHasErrors(['email']);
+    $this->assertGuest();
+});
+
+test('registration attempts are rate limited per ip', function () {
+    foreach (range(1, 10) as $attempt) {
+        $this->post(route('register'), ['name' => '', 'email' => '', 'password' => ''])
+            ->assertStatus(302);
+    }
+
+    $this->post(route('register'), ['name' => '', 'email' => '', 'password' => ''])
+        ->assertStatus(429);
 });
